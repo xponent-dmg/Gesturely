@@ -4,14 +4,19 @@ mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_hands = mp.solutions.hands
 
-def indexFingerUp(hand_landmarks):
-    landmarks = hand_landmarks.landmark
-    mp_hl = mp_hands.HandLandmark
-    if landmarks[mp_hl.INDEX_FINGER_TIP].y < landmarks[mp_hl.INDEX_FINGER_DIP].y < landmarks[mp_hl.INDEX_FINGER_PIP].y < landmarks[mp_hl.INDEX_FINGER_MCP].y:
-        print("Index finger is up => Pointer")
+def fingersUp(hand_landmarks, fingers =[mp_hands.HandLandmark.INDEX_FINGER_TIP, mp_hands.HandLandmark.MIDDLE_FINGER_TIP]):
+    lm = hand_landmarks.landmark
+    fingerStates = []
+    for tip in fingers:
+       pip = tip-2 #pip is two below tip
+       fingerStates.append(lm[tip].y < lm[pip].y)
+    
+    if fingerStates[0] and fingerStates[1]:
+       return "Two fingers - Scroll"
+    elif fingerStates[0]:
+       return "Index finger - pointer"
     else:
-       print("Index finger is down")
-
+       return "Unknown"
 
 # For webcam input:
 cap = cv2.VideoCapture(0)
@@ -30,23 +35,29 @@ with mp_hands.Hands(
     # To improve performance, optionally mark the image as not writeable to
     # pass by reference.
     image.flags.writeable = False
+    image = cv2.flip(image,1)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     results = hands.process(image)
 
     # Draw the hand annotations on the image.
     image.flags.writeable = True
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    gesture = "unknown"
     if results.multi_hand_landmarks:
-      for hand_landmarks in results.multi_hand_landmarks:
-        mp_drawing.draw_landmarks(
-            image,
-            hand_landmarks,
-            mp_hands.HAND_CONNECTIONS,
-            mp_drawing_styles.get_default_hand_landmarks_style(),
-            mp_drawing_styles.get_default_hand_connections_style())
-        indexFingerUp(hand_landmarks)
-    # Flip the image horizontally for a selfie-view display.
-    cv2.imshow('MediaPipe Hands', cv2.flip(image, 1))
+        for hand_landmarks in results.multi_hand_landmarks:
+            mp_drawing.draw_landmarks(
+                image,
+                hand_landmarks,
+                mp_hands.HAND_CONNECTIONS,
+                mp_drawing_styles.get_default_hand_landmarks_style(),
+                mp_drawing_styles.get_default_hand_connections_style())
+            gesture = fingersUp(hand_landmarks)
+    # Overlay text on the frame
+    cv2.putText(image, gesture, (50, 50), cv2.FONT_HERSHEY_SIMPLEX,
+                    1, (0, 255, 0), 2, cv2.LINE_AA)
+
+    # show the image in the video feed
+    cv2.imshow("Hand Gesture", image)
     if cv2.waitKey(5) & 0xFF == 27:
       break
 cap.release()
